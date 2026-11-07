@@ -61,7 +61,9 @@ jobs:
         run: flutter build apk --release --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
 
       - id: version
-        run: echo "version=$(grep '^version:' pubspec.yaml | sed 's/version: *//')" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
