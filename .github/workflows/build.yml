@@ -1,0 +1,81 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Also publish the result to the download channel"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # The source stays in its own private repository; it is fetched here
+      # with a read-only token and never copied into this one.
+      - uses: actions/checkout@v4
+        with:
+          repository: AlaaBashirSaijary/ClinicManagerFlutter
+          token: ${{ secrets.SRC_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.9"
+          channel: stable
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::signing secrets are not set"
+            exit 1
+          fi
+          mkdir -p android/keystore
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/keystore/clinic_manager_release.jks
+          {
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=keystore/clinic_manager_release.jks"
+          } > android/key.properties
+
+      - run: flutter pub get
+
+      - name: Build
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: flutter build apk --release --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
+
+      - id: version
+        run: echo "version=$(grep '^version:' pubspec.yaml | sed 's/version: *//')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Publish
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            build/app/outputs/flutter-apk/app-release.apk \
+            -R AlaaBashirSaijary/ayadati-site \
+            -t "عيادتي ${{ steps.version.outputs.version }}" \
+            -n "الإصدار ${{ steps.version.outputs.version }}" --latest
