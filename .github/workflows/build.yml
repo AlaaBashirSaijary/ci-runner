@@ -58,7 +58,10 @@ jobs:
       - name: Build
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: flutter build apk --release --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
+        run: |
+          flutter build apk --release \
+            --obfuscate --split-debug-info=build/symbols \
+            --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
 
       - id: version
         run: |
@@ -69,6 +72,16 @@ jobs:
         with:
           name: build-${{ steps.version.outputs.version }}
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # Needed later to turn an obfuscated crash stack trace back into real
+      # file/line info (flutter symbolize). Not the APK itself, so sharing
+      # it reveals nothing about the activation logic.
+      - name: Keep debug symbols (for crash deobfuscation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-${{ steps.version.outputs.version }}
+          path: build/symbols
           retention-days: 30
 
       - name: Publish
