@@ -58,10 +58,12 @@ jobs:
       - name: Build
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AYADATI_API_URL: ${{ secrets.AYADATI_API_URL }}
         run: |
           flutter build apk --release \
             --obfuscate --split-debug-info=build/symbols \
-            --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY"
+            --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY" \
+            --dart-define=AYADATI_API_URL="$AYADATI_API_URL"
 
       - id: version
         run: |
